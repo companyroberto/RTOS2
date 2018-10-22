@@ -16,6 +16,8 @@ typedef struct {
 	uint8_t	escritura;
 } bufferCircular_t;
 
+bufferCircular_t bufferCircular;
+
 void inicializarbuffer		( bufferCircular_t * bufferCircular );
 bool leerBuffer 			( bufferCircular_t * bufferCircular, uint8_t * dato );
 bool escribirBuffer 		( bufferCircular_t * bufferCircular, uint8_t dato );

@@ -10,7 +10,7 @@
 
 /*==================[definiciones de funciones internas]=====================*/
 
-inicializarbuffer( bufferCircular_t * bufferCircular )
+void inicializarbuffer( bufferCircular_t * bufferCircular )
 {
 	bufferCircular->escritura = 0;
 	bufferCircular->lectura   = 0;
