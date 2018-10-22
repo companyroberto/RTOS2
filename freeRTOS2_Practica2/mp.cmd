@@ -1,0 +1,1 @@
+python enviar_texto.py prueba.txt COM6 5
