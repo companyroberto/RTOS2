@@ -4,6 +4,7 @@
  *  Created on: 29/11/2011
  *      Author: alejandro
  */
+
 #include "sapi.h"
 #include "FrameworkEventos.h"
 #include "pulsadores.h"
@@ -26,12 +27,12 @@ typedef struct PulsadorStruct
 } Pulsador;
 
 void FSM_Pulsador ( Pulsador * pulsador, Evento_t * evn );
+
 #define MAX_PULSADORES 4
+
 Pulsador vectorPulsadores[MAX_PULSADORES];
-static int nPulsadores = 0;
 
-
-
+static int idPulsador = 0;
 
 static Modulo_t * mod;
 
@@ -40,22 +41,22 @@ void PulsadorInit ( Pulsador * p, gpioMap_t gpioInicializado )
 	p->boton 			= gpioInicializado;
 	p->estadoFSM 		= sPULSADOR_ESPERANDO_PULSACION;
 	p->ticksFiltrados 	= 0;
-	p->idPulsador 		= nPulsadores;
-	nPulsadores++;
+	p->idPulsador 		= idPulsador;
+	idPulsador++;
 }
 
 void DriverPulsadoresInit ( Modulo_t * pModulo )
 {
 	PulsadorInit( &vectorPulsadores[0], TEC1 );
+	PulsadorInit( &vectorPulsadores[1], TEC2 );
+	PulsadorInit( &vectorPulsadores[2], TEC3 );
+	PulsadorInit( &vectorPulsadores[3], TEC4 );
 
 	pModulo->periodo = 20;
 }
 
 void DriverPulsadores ( Evento_t *evn )
 {
-	//gpioWrite( LED2, ON );
-	gpioToggle( LED2 );
-
 	int i;
 	switch( evn->signal )
 	{
@@ -66,7 +67,7 @@ void DriverPulsadores ( Evento_t *evn )
 			break;
 
 		case SIG_TIMEOUT:
-			for ( i = 0; i < nPulsadores ; i++ )
+			for ( i = 0; i < idPulsador ; i++ )
 			{
 				FSM_Pulsador( &vectorPulsadores[i], evn );
 			}
@@ -110,7 +111,8 @@ void FSM_Pulsador ( Pulsador * pulsador, Evento_t * evn )
 			{
 				pulsador->estadoFSM 		= sPULSADOR_ESPERANDO_LIBERACION;
 				pulsador->ticksFiltrados 	= 5;
-				EncolarEvento(ModuloBroadcast, SIG_PULSADOR_APRETADO, pulsador->idPulsador);
+				EncolarEvento( ModuloLed, SIG_BOTON_APRETADO, pulsador->idPulsador );
+				EncolarEvento( ModuloTiempoPulsacion, SIG_BOTON_APRETADO, pulsador->idPulsador + 1 );
 			}
 			else
 			{
@@ -137,8 +139,9 @@ void FSM_Pulsador ( Pulsador * pulsador, Evento_t * evn )
 				//Liberacion confirmada, encolo un evento
 				pulsador->estadoFSM 		= sPULSADOR_ESPERANDO_PULSACION;
 				pulsador->ticksFiltrados 	= 5;
-				EncolarEvento(ModuloBroadcast, SIG_PULSADOR_LIBERADO, pulsador->idPulsador);
-				gpioWrite( LED2, ON );
+				EncolarEvento( ModuloLed, SIG_BOTON_LIBERADO, pulsador->idPulsador );
+				EncolarEvento( ModuloTiempoPulsacion, SIG_BOTON_LIBERADO, pulsador->idPulsador + 1 );
+				//gpioWrite( LED2, ON );
 			}
 			break;
 			//-----------------------------------------------------------------------------

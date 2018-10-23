@@ -8,9 +8,9 @@
 
 	Indicaciones por LED:
 
-	LED3 (verde):	Sistema iniciado.
-	LED2 (rojo):	Error en procesamiento.
-	LED1 (amarillo)	RTOS activo. (si titila...)
+	LED3 (verde):	Sistema iniciado.				// en conflicto con requerimientos TP3
+	LED2 (rojo):	Error en procesamiento.			// en conflicto con requerimientos TP3
+	LED1 (amarillo)	RTOS activo. (si titila...)		// en conflicto con requerimientos TP3
 
 =============================================================================*/
 
@@ -27,6 +27,9 @@
 
 #include "FrameworkEventos.h"
 #include "pulsadores.h"
+#include "leds.h"
+#include "TiempoPulsacion.h"
+
 
 /*==================[definiciones y macros]==================================*/
 
@@ -35,6 +38,8 @@
 
 Modulo_t * ModuloBroadcast;
 Modulo_t * ModuloDriverPulsadores;
+Modulo_t * ModuloLed;
+Modulo_t * ModuloTiempoPulsacion;
 
 /*==================[definiciones de datos externos]=========================*/
 
@@ -125,8 +130,7 @@ main							( void )
 			&pt_task_rtos_vivo					    // Puntero a la tarea creada en el sistema
 	);
 
-
-	// Manejador de eventos /////
+	// Manejador de eventos TP3 /////
 	queEventosBaja = xQueueCreate(15, sizeof(Evento_t));
 
     // Creo la tarea de baja prioridad
@@ -140,9 +144,11 @@ main							( void )
 
     ModuloBroadcast			= RegistrarModulo(ManejadorEventosBroadcast, 			PRIORIDAD_BAJA);
     ModuloDriverPulsadores	= RegistrarModulo(DriverPulsadores, 					PRIORIDAD_BAJA);
+    ModuloLed				= RegistrarModulo(DriverLeds, 							PRIORIDAD_BAJA);
+    ModuloTiempoPulsacion	= RegistrarModulo(DriverTiempoPulsacion,				PRIORIDAD_BAJA);
 
     IniciarTodosLosModulos();
-    //////// Manejador de eventos
+    //////////// Manejador de eventos
 
 
 	estado_aplicacion("freeRTOS 2 - Practica 3 (v1.0)", FALSE, NULL);
@@ -152,7 +158,7 @@ main							( void )
 	heap_disponible();
 
 	// Sistema iniciado
-	gpioWrite( LED3, ON );
+	//gpioWrite( LED3, ON );	// en conflicto con requerimientos TP3
 
 	// Timer para task_Medir_Performance
 	cyclesCounterReset();

@@ -76,9 +76,9 @@ def mostrar_respuestas(puerto, n_lineas_esperadas):
     while True:
         char = puerto.read()
         eco += char
-        if char == b'\x21': #!fin cadena
-            print('Comentarios: {}'.format(str(eco,encoding='latin-1')))
-            eco = bytes()	#comentarios
+        #if char == b'\x21': #!fin cadena
+        #    print('Comentarios: {}'.format(str(eco,encoding='latin-1')))
+        #    eco = bytes()	#comentarios
         if char == b'\xaa':
             eco = eco.replace(b'\n', b'')
             j += 1
@@ -138,6 +138,9 @@ with open( (args['nombre_archivo']), 'rt') as archivo:
         lineas_enviadas = enviar_archivo(archivo, puerto, args['operacion'])
         cartel_de_recepcion()
         mostrar_respuestas(puerto, lineas_enviadas * 2)	# Respuesta + STACK
-
+print(' ')
+print('Presione durante distintos intervalos de tiempo una vez cada boton ')
+print(' ')
+mostrar_respuestas(puerto, 4)						# Presionar los 4 botones para mostrar mensajes op = 6
 #===============================================================================
 

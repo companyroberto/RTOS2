@@ -20,7 +20,7 @@ struct Modulo_t {
 	fsm_ptr	manejadorEventos;
 	int		prioridad;
 	int		timeout_tick;
-	int 		periodo;
+	int 	periodo;
 };
 
 struct Evento_t {
@@ -30,7 +30,7 @@ struct Evento_t {
 };
 
 Modulo_t *	RegistrarModulo			( fsm_ptr manejadorEventos, int prioridad);
-void			IniciarTodosLosModulos	( void );
+void		IniciarTodosLosModulos	( void );
 
 extern xQueueHandle queEventosBaja;
 extern xQueueHandle queEventosMedia;
@@ -38,5 +38,8 @@ extern xQueueHandle queEventosAlta;
 
 extern Modulo_t * ModuloBroadcast;
 extern Modulo_t * ModuloPulsadores;
+extern Modulo_t * ModuloLed;
+extern Modulo_t * ModuloTiempoPulsacion;
+
 
 #endif /* MODULOS_H_ */

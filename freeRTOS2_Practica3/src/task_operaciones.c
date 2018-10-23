@@ -52,7 +52,7 @@ QueueHandle_t queMedirPerformance;
 
 enum protocolo					{ eProtocoloInicio_STX = 0x55, eProtocoloFin_ETX = 0xAA };
 enum paquete_estados_e			{ eInicio, eOperacion, eLongDatos, eDatos, eFin };
-enum paquete_operaciones_e		{ oMayusculizar, oMinusculizar, oStackDisponible, oHeapDisponible, oEstadoAplicacion, oPerformance };
+enum paquete_operaciones_e		{ oMayusculizar, oMinusculizar, oStackDisponible, oHeapDisponible, oEstadoAplicacion, oPerformance, oEventosBotonos };
 
 // Medir performance
 typedef enum estado_medicion    { eT_LL, eT_R, eT_I, eT_F, eT_S, eT_T } estado_mp;
@@ -214,6 +214,30 @@ estado_aplicacion				( char * msg, uint8_t interrupcion, BaseType_t * xHig )
 	}else{
 		xQueueSend( queTransmision, &queue_operaciones, portMAX_DELAY  );
 	}
+}
+
+void
+tiempo_boton_oprimido			( TickType_t contadorTick, int TECid )
+{
+	char c[255];
+	memset( c, 0, sizeof( c ) );
+	sprintf( c, "Se presiono TEC%d durante %d ms.", TECid, contadorTick / portTICK_RATE_MS );
+
+	queue_operaciones_t queue_operaciones;
+	queue_operaciones.operacion = oEventosBotonos;
+	queue_operaciones.longDatos = strlen(c);
+
+	if ( strlen(c) < eBloqueChico )
+		queue_operaciones.mem_pool = &mem_pool_chico;
+	else if ( strlen(c) < eBloqueMediano )
+		queue_operaciones.mem_pool = &mem_pool_mediano;
+	else
+		queue_operaciones.mem_pool = &mem_pool_grande;
+
+	queue_operaciones.block = QMPool_get( queue_operaciones.mem_pool, 0U, FALSE );		// Reserva la memoria
+	strncpy( queue_operaciones.block, c, strlen(c));
+
+	xQueueSend( queTransmision, &queue_operaciones, portMAX_DELAY  );
 }
 
 //R2 : La aplicaciÃ³n devolverÃ¡ por el mismo canal los paquete procesados segÃºn el protocolo descrito anteriormente.
@@ -409,9 +433,11 @@ task_rtos_vivo					( void* taskParmPtr )
 	while(TRUE) {
 		vTaskDelay( 500 / portTICK_RATE_MS );
 
-		gpioToggle( LED1 );					// Señal de RTOS vivo...
+		gpioToggle( LED1 );						// Señal de RTOS vivo...
+
+		if( gpioRead(LED1) == OFF )
+			vTaskSuspend( pt_task_rtos_vivo );	// en conflicto con requerimientos TP3
 	}
-	//vTaskSuspend( pt_task_rtos_vivo );	// Prueba de punteros RTOS a tareas RTOS
 }
 
 
@@ -596,11 +622,18 @@ callback_medir_performance		( void *p, BaseType_t * xHig )
 void
 fsm_medir_performance 			( Token_t * ptr )
 {
+	static TickType_t contadorTick;
 
 	switch( ptr->estado_Token )
 	{
 	case eT_LL:
-		ptr->tiempo_de_llegada = cyclesCounterToUs(cyclesCounterRead());
+		//cyclesCounterConfig(EDU_CIAA_NXP_CLOCK_SPEED);
+		cyclesCounterReset();
+		//contadorTick = xTaskGetTickCount();
+
+		ptr->tiempo_de_llegada = cyclesCounterToUs( cyclesCounterRead() );
+		//ptr->tiempo_de_llegada = ((xTaskGetTickCount() - contadorTick) / portTICK_RATE_MS) * 1000;
+
 		ptr->estado_Token = eT_R;
 		break;
 
@@ -610,26 +643,36 @@ fsm_medir_performance 			( Token_t * ptr )
 		ptr->ptr_completion_handler = callback_medir_performance;
 
 		ptr->tiempo_de_recepcion = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_recepcion = ((xTaskGetTickCount() - contadorTick) / portTICK_RATE_MS) * 1000;
+
 		ptr->estado_Token = eT_I;
 		break;
 
 	case eT_I:
 		ptr->tiempo_de_inicio = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_inicio = ((xTaskGetTickCount() - contadorTick) / portTICK_RATE_MS) * 1000;
+
 		ptr->estado_Token=eT_F;
 		break;
 
 	case eT_F:
 		ptr->tiempo_de_fin = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_fin = ((xTaskGetTickCount() - contadorTick) / portTICK_RATE_MS) * 1000;
+
 		ptr->estado_Token=eT_S;
 		break;
 
 	case eT_S:
 		ptr->tiempo_de_salida = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_salida = ((xTaskGetTickCount() - contadorTick) / portTICK_RATE_MS) * 1000;
+
 		ptr->estado_Token=eT_T;
 		break;
 
 	case eT_T:
 		ptr->tiempo_de_transmision = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_transmision = ((xTaskGetTickCount() - contadorTick) / portTICK_RATE_MS) * 1000;
+
 		break;
 
 	default:
