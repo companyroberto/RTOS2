@@ -112,7 +112,7 @@ void FSM_Pulsador ( Pulsador * pulsador, Evento_t * evn )
 				pulsador->estadoFSM 		= sPULSADOR_ESPERANDO_LIBERACION;
 				pulsador->ticksFiltrados 	= 5;
 				EncolarEvento( ModuloLed, SIG_BOTON_APRETADO, pulsador->idPulsador );
-				EncolarEvento( ModuloTiempoPulsacion, SIG_BOTON_APRETADO, pulsador->idPulsador + 1 );
+				EncolarEvento( ModuloTiempoPulsacion, SIG_BOTON_APRETADO, pulsador->idPulsador );
 			}
 			else
 			{
@@ -140,7 +140,7 @@ void FSM_Pulsador ( Pulsador * pulsador, Evento_t * evn )
 				pulsador->estadoFSM 		= sPULSADOR_ESPERANDO_PULSACION;
 				pulsador->ticksFiltrados 	= 5;
 				EncolarEvento( ModuloLed, SIG_BOTON_LIBERADO, pulsador->idPulsador );
-				EncolarEvento( ModuloTiempoPulsacion, SIG_BOTON_LIBERADO, pulsador->idPulsador + 1 );
+				EncolarEvento( ModuloTiempoPulsacion, SIG_BOTON_LIBERADO, pulsador->idPulsador );
 				//gpioWrite( LED2, ON );
 			}
 			break;

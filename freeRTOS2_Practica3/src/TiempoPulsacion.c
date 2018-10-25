@@ -40,9 +40,6 @@ static Modulo_t * mod;
 
 void DriverTiempoPulsacion ( Evento_t *evn )
 {
-	//int i;
-	static TickType_t contadorTick = 0;
-
 	switch( evn->signal )
 	{
 		case SIG_MODULO_INICIAR:
@@ -52,12 +49,14 @@ void DriverTiempoPulsacion ( Evento_t *evn )
 			break;
 
 		case SIG_BOTON_APRETADO:
-			contadorTick = xTaskGetTickCount();
+			vectorTpoPulsadores[ evn->valor ].tiempoInicial = xTaskGetTickCount();
 			break;
 
 		case SIG_BOTON_LIBERADO:
-			contadorTick = xTaskGetTickCount() - contadorTick;
-			tiempo_boton_oprimido( contadorTick, evn->valor );
+			vectorTpoPulsadores[ evn->valor ].tiempoFinal = xTaskGetTickCount();
+			TickType_t diferenciaTick = vectorTpoPulsadores[ evn->valor ].tiempoFinal - vectorTpoPulsadores[ evn->valor ].tiempoInicial;
+
+			tiempo_boton_oprimido( diferenciaTick, evn->valor + 1 );
 			break;
 
 		default:	// Ignoro todas las otras seniales

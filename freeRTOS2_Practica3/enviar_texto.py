@@ -139,7 +139,7 @@ with open( (args['nombre_archivo']), 'rt') as archivo:
         cartel_de_recepcion()
         mostrar_respuestas(puerto, lineas_enviadas * 2)	# Respuesta + STACK
 print(' ')
-print('Presione durante distintos intervalos de tiempo una vez cada boton ')
+print('Presione durante distintos intervalos de tiempo una vez cada boton (o silmutaneamente), 4 en total. ')
 print(' ')
 mostrar_respuestas(puerto, 4)						# Presionar los 4 botones para mostrar mensajes op = 6
 #===============================================================================

@@ -12,6 +12,7 @@
 #include "FreeRTOSConfig.h"
 #include "task.h"
 #include "queue.h"
+#include "semphr.h"
 
 
 /*==================[definiciones de datos publicos]=========================*/

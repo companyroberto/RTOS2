@@ -1,1 +1,1 @@
-python enviar_texto.py prueba.txt COM4 5
+python enviar_texto.py prueba.txt COM6 5

@@ -47,11 +47,19 @@ DEBUG_PRINT_ENABLE;
 
 /*==================[función principal]======================================*/
 
+SemaphoreHandle_t sem_performance;
+
 // FUNCION PRINCIPAL, PUNTO DE ENTRADA AL PROGRAMA LUEGO DE ENCENDIDO O RESET.
 int
 main							( void )
 {
 	// ---------- CONFIGURACIONES ------------------------------
+
+	// Sincronizar operaciones performance
+	sem_performance = xSemaphoreCreateBinary();
+
+	// Habilitamos 1 operacion performance a la vez
+	xSemaphoreGive( sem_performance );
 
 	// Inicializar y configurar la plataforma
 	boardConfig();
