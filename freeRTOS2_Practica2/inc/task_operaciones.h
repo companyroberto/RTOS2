@@ -12,6 +12,7 @@
 #include "FreeRTOSConfig.h"
 #include "task.h"
 #include "queue.h"
+#include "semphr.h"
 
 
 /*==================[definiciones de datos publicos]=========================*/
@@ -42,6 +43,7 @@ void recibir_UART				( void* noUsado );
 void stack_disponible			( int operacion);
 void heap_disponible			( );
 void estado_aplicacion			( char * msg, uint8_t interrupcion, BaseType_t * xHig );
+void tiempo_boton_oprimido		( TickType_t contadorTick, int TECid );
 
 void enviar_UART				( void* noUsado );
 

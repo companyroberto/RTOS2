@@ -22,6 +22,8 @@
 #include <string.h>
 
 
+
+
 /*==================[definiciones de datos internos]=========================*/
 
 
@@ -52,7 +54,7 @@ QueueHandle_t queMedirPerformance;
 
 enum protocolo					{ eProtocoloInicio_STX = 0x55, eProtocoloFin_ETX = 0xAA };
 enum paquete_estados_e			{ eInicio, eOperacion, eLongDatos, eDatos, eFin };
-enum paquete_operaciones_e		{ oMayusculizar, oMinusculizar, oStackDisponible, oHeapDisponible, oEstadoAplicacion, oPerformance };
+enum paquete_operaciones_e		{ oMayusculizar, oMinusculizar, oStackDisponible, oHeapDisponible, oEstadoAplicacion, oPerformance, oEventosBotonos };
 
 // Medir performance
 typedef enum estado_medicion    { eT_LL, eT_R, eT_I, eT_F, eT_S, eT_T } estado_mp;
@@ -64,6 +66,7 @@ typedef struct {
 
 	uint32_t  id_de_paquete;         				//id_de_paquete=0 ---> id_de_paquete++
 	char * payload;					 				//apuntar· al paquete de datos a procesar.
+	uint32_t  tiempo_inicial;	     				//Punto de comparacion
     uint32_t  tiempo_de_llegada;     				//De la llegada del paquete.
     uint32_t  tiempo_de_recepcion;   				//Del fin del paquete recibido.
     uint32_t  tiempo_de_inicio;      				//Inicio de la operaci√≥n (Mayusculizar).
@@ -85,6 +88,7 @@ typedef struct {
 } queue_operaciones_t;
 
 
+
 /*==================[declaraciones de funciones internas]====================*/
 
 
@@ -95,7 +99,9 @@ int  hay_que_minusculizar		( char c );
 
 void callback_medir_performance ( void *T, BaseType_t * xHig );
 
-void fsm_medir_performance      ( Token_t * ptT );
+void fsm_medir_performance      ( Token_t * ptr, uint8_t interrupcion);
+
+extern SemaphoreHandle_t sem_performance;
 
 
 /*==================[definiciones de funciones externas]=====================*/
@@ -216,6 +222,30 @@ estado_aplicacion				( char * msg, uint8_t interrupcion, BaseType_t * xHig )
 	}
 }
 
+void
+tiempo_boton_oprimido			( TickType_t contadorTick, int TECid )
+{
+	char c[255];
+	memset( c, 0, sizeof( c ) );
+	sprintf( c, "Se presiono TEC%d durante %d ms.", TECid, contadorTick / portTICK_RATE_MS );
+
+	queue_operaciones_t queue_operaciones;
+	queue_operaciones.operacion = oEventosBotonos;
+	queue_operaciones.longDatos = strlen(c);
+
+	if ( strlen(c) < eBloqueChico )
+		queue_operaciones.mem_pool = &mem_pool_chico;
+	else if ( strlen(c) < eBloqueMediano )
+		queue_operaciones.mem_pool = &mem_pool_mediano;
+	else
+		queue_operaciones.mem_pool = &mem_pool_grande;
+
+	queue_operaciones.block = QMPool_get( queue_operaciones.mem_pool, 0U, FALSE );		// Reserva la memoria
+	strncpy( queue_operaciones.block, c, strlen(c));
+
+	xQueueSend( queTransmision, &queue_operaciones, portMAX_DELAY  );
+}
+
 //R2 : La aplicaci√≥n devolver√° por el mismo canal los paquete procesados seg√∫n el protocolo descrito anteriormente.
 void
 enviar_UART						( void* noUsado )
@@ -236,9 +266,12 @@ enviar_UART						( void* noUsado )
 			xQueueReceiveFromISR( queMedirPerformance, &Token, &xHig );
 
 			// Despues de trasmitir
-			fsm_medir_performance( &Token );
+			fsm_medir_performance( &Token, TRUE );
 
 			Token.ptr_completion_handler( &Token, &xHig );
+
+			// Habilitamos 1 operacion performance a la vez
+			xSemaphoreGiveFromISR( sem_performance, &xHig);
 
 			portYIELD_FROM_ISR(xHig);
 			operacion_performance = 0;
@@ -335,7 +368,7 @@ task_transmision_UART			( void* taskParmPtr )
 				xQueueReceive( queMedirPerformance, &Token, portMAX_DELAY );
 
 				// Antes de empezar a trasmitir
-				fsm_medir_performance( &Token );
+				fsm_medir_performance( &Token, FALSE );
 
 				xQueueSend( queMedirPerformance, &Token, portMAX_DELAY );
 			}
@@ -362,6 +395,12 @@ task_medir_performance			( void* taskParmPtr )
 	// ---------- REPETIR POR SIEMPRE --------------------------
 	while(TRUE) {
 
+		/*
+		 * Comentario sobre diseÒo:
+		 * Se utiliza un semaforo para manejar una sola operacion performance a la vez						 *
+		 */
+		xSemaphoreTake( sem_performance, portMAX_DELAY);
+
 		queue_operaciones_t queue_operaciones;
 		xQueueReceive( quePerformance, &queue_operaciones, portMAX_DELAY );
 
@@ -369,7 +408,7 @@ task_medir_performance			( void* taskParmPtr )
 		xQueueReceive( queMedirPerformance, &Token, portMAX_DELAY );
 
 		// Antes de mayusculizar
-		fsm_medir_performance( &Token );
+		fsm_medir_performance( &Token, FALSE );
 
 		//R1.6 : Se convertir√°n a may√∫sculas los paquetes recibidos en la cola √¢‚Ç¨≈ìqueMayusculizar√¢‚Ç¨ÔøΩ.
 		int i;
@@ -378,7 +417,7 @@ task_medir_performance			( void* taskParmPtr )
 			queue_operaciones.block[i] = toupper( queue_operaciones.block[i] );
 
 		// Despues de mayusculizar
-		fsm_medir_performance( &Token );
+		fsm_medir_performance( &Token, FALSE );
 
 		xQueueSend( queMedirPerformance, &Token, portMAX_DELAY );
 
@@ -409,9 +448,8 @@ task_rtos_vivo					( void* taskParmPtr )
 	while(TRUE) {
 		vTaskDelay( 500 / portTICK_RATE_MS );
 
-		gpioToggle( LED1 );					// SeÒal de RTOS vivo...
+		gpioToggle( LED1 );						// SeÒal de RTOS vivo...
 	}
-	//vTaskSuspend( pt_task_rtos_vivo );	// Prueba de punteros RTOS a tareas RTOS
 }
 
 
@@ -439,7 +477,7 @@ recibir_fsm						( char c, BaseType_t * xHig )
 				paquete_estados = eOperacion;
 
 				Token.estado_Token = eT_LL;
-				fsm_medir_performance( &Token );
+				fsm_medir_performance( &Token, TRUE );
 			}
 			else
 				gpioWrite( LED2, ON );
@@ -506,7 +544,7 @@ recibir_fsm						( char c, BaseType_t * xHig )
 				gpioWrite( LED2, ON );
 			}else{
 				if( paquete_operaciones == oPerformance ){
-					fsm_medir_performance( &Token );
+					fsm_medir_performance( &Token, TRUE );
 				}
 
 				queue_operaciones.operacion = paquete_operaciones;
@@ -526,8 +564,9 @@ recibir_fsm						( char c, BaseType_t * xHig )
 					case oPerformance:
 						/*
 						 * Comentario sobre diseÒo:
-						 * Se mantiene la estructura 'queue_operaciones' con el atributo token asociado segun requerimientos.						 *
+						 * Se mantiene la estructura 'queue_operaciones' con el atributo token asociado segun requerimientos.
 						 */
+
 						xQueueSendFromISR( quePerformance, &queue_operaciones, xHig );
 						// R2: Los punteros a token asociados a mediciones de performance se recoger·n de la cola ìqueMedirPerformanceî.
 						xQueueSendFromISR( queMedirPerformance, &Token, xHig );
@@ -568,6 +607,21 @@ callback_medir_performance		( void *p, BaseType_t * xHig )
 {
 	Token_t * T = (Token_t*) p;
 
+	char c[250];
+	memset( c, 0, sizeof( c ) );
+	sprintf( c, "ID:%d / eT_LL:%d ms / eT_R:%d ms / eT_I:%d ms / eT_F:%d ms / eT_S:%d ms / eT_T:%d ms / l_p:%d bytes / t_p:%d bytes"
+			,T->id_de_paquete
+			,T->tiempo_de_llegada
+			,T->tiempo_de_recepcion
+			,T->tiempo_de_inicio
+			,T->tiempo_de_fin
+			,T->tiempo_de_salida
+			,T->tiempo_de_transmision
+			,T->largo_del_paquete
+			,T->memoria_alojada
+			);
+
+	/*
  	char s1[200];
 	char s2[20];
 	memset(s1,0,sizeof(s1));
@@ -589,18 +643,27 @@ callback_medir_performance		( void *p, BaseType_t * xHig )
     strcat(s1,s2);
     sprintf( s2, " t_p:%d bytes-",T->memoria_alojada);
     strcat(s1,s2);
+    */
 
-    estado_aplicacion( s1, TRUE, xHig );
+    estado_aplicacion( c, TRUE, xHig );
 }
 
 void
-fsm_medir_performance 			( Token_t * ptr )
+fsm_medir_performance 			( Token_t * ptr, uint8_t interrupcion)
 {
-
 	switch( ptr->estado_Token )
 	{
 	case eT_LL:
-		ptr->tiempo_de_llegada = cyclesCounterToUs(cyclesCounterRead());
+		//cyclesCounterConfig(EDU_CIAA_NXP_CLOCK_SPEED);
+		//cyclesCounterReset();
+		ptr->tiempo_inicial  = xTaskGetTickCount();
+
+		//ptr->tiempo_de_llegada = cyclesCounterToUs( cyclesCounterRead() );
+		if( interrupcion )
+			ptr->tiempo_de_llegada = ((xTaskGetTickCountFromISR() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+		else
+			ptr->tiempo_de_llegada = ((xTaskGetTickCount() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+
 		ptr->estado_Token = eT_R;
 		break;
 
@@ -609,27 +672,52 @@ fsm_medir_performance 			( Token_t * ptr )
 		ptr->id_de_paquete = id_de_paquete++;
 		ptr->ptr_completion_handler = callback_medir_performance;
 
-		ptr->tiempo_de_recepcion = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_recepcion = cyclesCounterToUs(cyclesCounterRead());
+		if( interrupcion )
+			ptr->tiempo_de_recepcion = ((xTaskGetTickCountFromISR() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+		else
+			ptr->tiempo_de_recepcion = ((xTaskGetTickCount() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+
 		ptr->estado_Token = eT_I;
 		break;
 
 	case eT_I:
-		ptr->tiempo_de_inicio = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_inicio = cyclesCounterToUs(cyclesCounterRead());
+		if( interrupcion )
+			ptr->tiempo_de_inicio = ((xTaskGetTickCountFromISR() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+		else
+			ptr->tiempo_de_inicio = ((xTaskGetTickCount() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+
 		ptr->estado_Token=eT_F;
 		break;
 
 	case eT_F:
-		ptr->tiempo_de_fin = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_fin = cyclesCounterToUs(cyclesCounterRead());
+		if( interrupcion )
+			ptr->tiempo_de_fin = ((xTaskGetTickCountFromISR() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+		else
+			ptr->tiempo_de_fin = ((xTaskGetTickCount() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+
 		ptr->estado_Token=eT_S;
 		break;
 
 	case eT_S:
-		ptr->tiempo_de_salida = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_salida = cyclesCounterToUs(cyclesCounterRead());
+		if( interrupcion )
+			ptr->tiempo_de_salida = ((xTaskGetTickCountFromISR() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+		else
+			ptr->tiempo_de_salida = ((xTaskGetTickCount() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+
 		ptr->estado_Token=eT_T;
 		break;
 
 	case eT_T:
-		ptr->tiempo_de_transmision = cyclesCounterToUs(cyclesCounterRead());
+		//ptr->tiempo_de_transmision = cyclesCounterToUs(cyclesCounterRead());
+		if( interrupcion )
+			ptr->tiempo_de_transmision = ((xTaskGetTickCountFromISR() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+		else
+			ptr->tiempo_de_transmision = ((xTaskGetTickCount() - ptr->tiempo_inicial) / portTICK_RATE_MS);
+
 		break;
 
 	default:
